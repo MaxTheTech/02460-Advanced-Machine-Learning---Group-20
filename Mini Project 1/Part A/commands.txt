@@ -5,7 +5,7 @@ python vae.py sample --model gauss_bin.pt --device mps
 
 python vae.py eval --model gauss_bin.pt --device mps
 
-Avg. ELBO on test set: -2.8079628944396973
+Avg. ELBO on test set: -89.7416305419922
 
 
 
@@ -16,18 +16,18 @@ python vae.py sample --model mog_bin.pt --device mps --prior mog
 
 python vae.py eval --model mog_bin.pt --device mps --prior mog
 
-Avg. ELBO on test set: -2.7356443405151367
+Avg. ELBO on test set: -87.40810258789062
 
 
 
 # Flow prior VAE on binary MNIST
-python vae.py train --model Flow_bin.pt --device mps --prior flow
+python vae.py train --model flow_bin.pt --device mps --prior flow
 
-python vae.py sample --model Flow_bin.pt --device mps --prior flow
+python vae.py sample --model flow_bin.pt --device mps --prior flow
 
-python vae.py eval --model Flow_bin.pt --device mps --prior flow
+python vae.py eval --model flow_bin.pt --device mps --prior flow
 
-XYZ
+Avg. ELBO on test set: -88.2771490966797
 
 
 

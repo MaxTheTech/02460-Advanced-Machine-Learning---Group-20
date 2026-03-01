@@ -10,6 +10,7 @@ import torch.distributions as td
 import torch.utils.data
 from torch.nn import functional as F
 from tqdm import tqdm
+from flow import GaussianBase, MaskedCouplingLayer, Flow
 
 
 class GaussianPrior(nn.Module):
@@ -64,6 +65,52 @@ class MoGPrior(nn.Module):
         mix = td.Categorical(logits=self.logits)
         comp = td.Independent(td.Normal(loc=self.means, scale=torch.exp(self.log_stds)), 1)
         return td.MixtureSameFamily(mix, comp)
+
+
+class FlowPrior(nn.Module):
+    def __init__(self, M, num_layers=5, num_hidden=128):
+        """
+        Define a normalizing flow prior.
+
+                Parameters:
+        M: [int]
+            Dimension of the latent space.
+        num_layers: [int]
+            Number of coupling layers.
+        num_hidden: [int]
+            Hidden dimension for the coupling networks.
+        """
+        super(FlowPrior, self).__init__()
+        self.M = M
+
+        # base distribution
+        base = GaussianBase(M)
+
+        # build coupling layers with alternating masks
+        transformations = []
+        mask = torch.zeros(M)
+        mask[M//2:] = 1
+
+        for i in range(num_layers):
+            current_mask = mask if i % 2 == 0 else (1 - mask)
+            scale_net = nn.Sequential(
+                nn.Linear(M, num_hidden),
+                nn.ReLU(),
+                nn.Linear(num_hidden, M),
+                nn.Tanh()
+            )
+            translation_net = nn.Sequential(
+                nn.Linear(M, num_hidden),
+                nn.ReLU(),
+                nn.Linear(num_hidden, M)
+            )
+            transformations.append(MaskedCouplingLayer(scale_net, translation_net, current_mask))
+
+        self.flow = Flow(base, transformations)
+
+    def forward(self):
+        """Return the flow model itself (which has log_prob and sample methods)."""
+        return self.flow
 
 
 class GaussianEncoder(nn.Module):
@@ -232,13 +279,18 @@ if __name__ == "__main__":
 
     # model architecture
     parser.add_argument('--prior', type=str, default='gaussian', choices=['gaussian', 'mog', 'flow'], help='prior distribution (default: %(default)s)')
+    ## simple Gaussian and MoG
+    parser.add_argument('--latent-dim', type=int, default=32, metavar='N', help='dimension of latent variable (default: %(default)s)')
+    ## MoG
     parser.add_argument('--num-components', type=int, default=10, metavar='K', help='number of MoG components (default: %(default)s)')
-    parser.add_argument('--decoder', type=str, default='bernoulli', choices=['bernoulli', 'gaussian'], help='decoder distribution, "bernoulli" for binarized MNIST and "gaussian" for continuous MNIST (default: %(default)s)')
+    ## flow
+    parser.add_argument('--flow-layers', type=int, default=10, help='number of flow coupling layers (default: %(default)s)')
+    parser.add_argument('--flow-hidden', type=int, default=128, help='hidden dimension for flow networks (default: %(default)s)')
 
     # training
     parser.add_argument('--batch-size', type=int, default=32, metavar='N', help='batch size for training (default: %(default)s)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N', help='number of epochs to train (default: %(default)s)')
-    parser.add_argument('--latent-dim', type=int, default=32, metavar='N', help='dimension of latent variable (default: %(default)s)')
+
 
     # eval
     parser.add_argument('--save-posterior', action='store_true', help='save the posterior')
@@ -251,21 +303,11 @@ if __name__ == "__main__":
 
     device = args.device
 
-    # load MNIST (binarized or continous) and create data loaders
-    if args.decoder == 'bernoulli':
-        # binarized MNIST
-        thresshold = 0.5
-        transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: (thresshold < x).float().squeeze())])
-    else:
-        # continuous MNIST
-        transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.squeeze())])
-
-    mnist_train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('data/', train=True, download=True, transform=transform),
-        batch_size=args.batch_size, shuffle=True)
-    mnist_test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('data/', train=False, download=True, transform=transform),
-        batch_size=args.batch_size, shuffle=True)
+    # load binarized MNIST and create data loaders
+    thresshold = 0.5
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: (thresshold < x).float().squeeze())])
+    mnist_train_loader = torch.utils.data.DataLoader(datasets.MNIST('data/', train=True, download=True, transform=transform), batch_size=args.batch_size, shuffle=True)
+    mnist_test_loader = torch.utils.data.DataLoader(datasets.MNIST('data/', train=False, download=True, transform=transform), batch_size=args.batch_size, shuffle=True)
 
     # Define prior distribution
     M = args.latent_dim
@@ -273,6 +315,8 @@ if __name__ == "__main__":
         prior = GaussianPrior(M)
     elif args.prior == "mog":
         prior = MoGPrior(M, args.num_components)
+    elif args.prior == 'flow':
+        prior = FlowPrior(M, num_layers=args.flow_layers, num_hidden=args.flow_hidden)
 
     # Define encoder and decoder networks
     encoder_net = nn.Sequential(
@@ -341,7 +385,10 @@ if __name__ == "__main__":
                 x = x.to(device)
             
                 # batch ELBO
-                elbo_sum += model.elbo(x).sum()
+                q = model.encoder(x)
+                z = q.rsample()
+                elbo_batch = model.decoder(z).log_prob(x) + model.prior().log_prob(z) - q.log_prob(z)
+                elbo_sum += elbo_batch.sum().item()
                 n_samples += x.shape[0]
 
                 # prior samples
@@ -375,7 +422,8 @@ if __name__ == "__main__":
         scatter = plt.scatter(all_z[:, 0], all_z[:, 1], label="posterior", c="red", s=1, alpha=0.5)
         plt.xlabel('z1' if M <= 2 else 'PC1')
         plt.ylabel('z2' if M <= 2 else 'PC2')
-        plt.title('Prior VS Approximate Posterior Samples')
+        plt.title(f'{str(args.prior).capitalize()} Prior VS Approximate Posterior Samples')
+        plt.legend()
         plt.tight_layout()
         os.makedirs(os.path.dirname(comparison_path), exist_ok=True)
         plt.savefig(comparison_path, dpi=150)
