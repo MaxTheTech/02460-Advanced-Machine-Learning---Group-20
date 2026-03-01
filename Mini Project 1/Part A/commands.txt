@@ -1,0 +1,41 @@
+# Simple Gaussian prior VAE on binary MNIST
+python vae.py train --model gauss_bin.pt --device mps
+
+python vae.py sample --model gauss_bin.pt --device mps
+
+python vae.py eval --model gauss_bin.pt --device mps
+
+Avg. ELBO on test set: -2.8079628944396973
+
+
+
+# MoG prior VAE on binary MNIST
+python vae.py train --model mog_bin.pt --device mps --prior mog
+
+python vae.py sample --model mog_bin.pt --device mps --prior mog
+
+python vae.py eval --model mog_bin.pt --device mps --prior mog
+
+Avg. ELBO on test set: -2.7356443405151367
+
+
+
+# Flow prior VAE on binary MNIST
+python vae.py train --model Flow_bin.pt --device mps --prior flow
+
+python vae.py sample --model Flow_bin.pt --device mps --prior flow
+
+python vae.py eval --model Flow_bin.pt --device mps --prior flow
+
+XYZ
+
+
+
+
+TO DO:
+For each of the three priors, you have to:
+• Show a plot of the prior and the aggregate posterior. (DONE)
+• Discuss and compare across priors the match between the priors and the aggregate posteriors.
+• Evaluate the test set log-likelihood as approximated by the ELBO. (DONE)
+• Discuss and compare the test set log-likelihood across priors.
+You must report the mean and standard derivation over multiple training runs when reporting the test set log-likelihood. You also need to briefly describe the architectures used for the encoder and decoder.
