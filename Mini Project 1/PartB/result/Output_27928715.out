@@ -1,0 +1,11 @@
+DDPM sampling time for 500 samples: 11.2933 seconds
+DDPM FID: 43.0396
+VAE sampling time for 500 samples: 0.7255 seconds
+VAE FID: 88.9200
+DDPM_VAE sampling time for 500 samples: 0.5201 seconds
+DDPM_VAE FID: 189444729.3569 with beta=0.1
+Beta: 1e-06, FID: 3101608038.5336
+Beta: 0.0001, FID: 11970.8516
+Beta: 0.01, FID: 30055.7393
+Beta: 0.1, FID: 102.6832
+Beta: 1.0, FID: 101.3739
