@@ -422,7 +422,7 @@ if __name__ == "__main__":
         scatter = plt.scatter(all_z[:, 0], all_z[:, 1], label="posterior", c="red", s=1, alpha=0.5)
         plt.xlabel('z1' if M <= 2 else 'PC1')
         plt.ylabel('z2' if M <= 2 else 'PC2')
-        plt.title(f'{str(args.prior).capitalize()} Prior VS Approximate Posterior Samples')
+        #plt.title(f'{str(args.prior).capitalize()} Prior VS Approximate Posterior Samples')
         plt.legend()
         plt.tight_layout()
         os.makedirs(os.path.dirname(comparison_path), exist_ok=True)

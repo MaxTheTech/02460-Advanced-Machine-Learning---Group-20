@@ -1,0 +1,15 @@
+The models_PartB.py contains the classes for the models used in part B. also the traning loops are included in the classes
+
+- GaussianPrior class is identical from the vae_bernoulli.py from week 1
+- GaussianEncoder class is identical from the vae_bernoulli.py from week 1
+- GaussianDecoder is written as a part of the excerises 
+- basic_network is a basc fully connected network of 3 layers
+- VAE is almost identical except i added the beta to the elbo
+- DDPM class is almost identical except in the implimaentation of algo 1 i normilize the the t value that we insert to the network by divding it with the max T in the negative elbo function and in algo 2 implementation is the same 
+
+The mains.py file initializes the models based on the option selected and either trains them or sample from the saved models
+
+the betaAndOther.py does the time measuerment plots and runs the DDPM_vae for diffrent betas 
+
+the test1 folder contains the output and the plots 
+and batch.sh is the job script for the hpc
