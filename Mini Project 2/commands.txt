@@ -1,0 +1,18 @@
+### NOTE:
+Currently,
+--num-decoders, --num-reruns, --num-curves and --num-t
+are not implemented
+
+
+
+### PART A
+
+python ensemble_vae.py train --model 1.pt --device mps
+
+python ensemble_vae.py sample --model 1.pt --device mps
+
+python ensemble_vae.py eval --model 1.pt --device mps
+
+python ensemble_vae.py geodesics --model 1.pt --device mps
+--num-curves 5 --opt-lr 0.001 --num-iter 2000
+
