@@ -11,9 +11,13 @@
 #BSUB -o logs/Output_%J_%I.out
 #BSUB -e logs/Output_%J_%I.err
 
-source /zhome/69/0/168594/Documents/advML/Mini_Project_1/.venv/bin/activate
-cd /zhome/69/0/168594/Documents/advML/Mini_Project_1 
-SCRIPT="02460-Advanced-Machine-Learning---Group-20/Mini Project 2/ensemble_vaeB.py"
+module load python3/3.11.9
+module load cuda/12.8
+
+source /zhome/06/9/168972/AdvML/02460-Advanced-Machine-Learning---Group-20/Mini\ Project\ 2/.venv/bin/activate
+cd /zhome/06/9/168972/AdvML/02460-Advanced-Machine-Learning---Group-20/Mini\ Project\ 2
+
+SCRIPT="ensemble_vaeB.py"
 COMMON="--num-reruns 10 --seed 42 --num-curves 25 --num-iter 2000 --device cuda"
 
 D=$LSB_JOBINDEX
