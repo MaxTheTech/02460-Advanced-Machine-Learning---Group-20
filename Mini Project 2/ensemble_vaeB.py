@@ -336,11 +336,9 @@ def plot_geodesics(model, all_latents, all_labels, geodesics, num_classes, devic
             decoded = model.decoder.decoder_net(z_grid).reshape(z_grid.shape[0], -1)
             pixel_std = decoded.std(dim=1).cpu().numpy().reshape(xx.shape)
         else:
-            average_decoded = torch.zeros(z_grid.shape[0], 28*28, device=device)
-            for decoder in model.decoder:
-                average_decoded += decoder.decoder_net(z_grid).reshape(z_grid.shape[0], -1)
-            decoded = average_decoded / len(model.decoder)
-            pixel_std = decoded.std(dim=1).cpu().numpy().reshape(xx.shape)
+            decoder_outputs = torch.stack([ decoder.decoder_net(z_grid).reshape(z_grid.shape[0], -1) for decoder in model.decoder], dim=0)  # [K, N_grid, D]
+            pixel_std = decoder_outputs.std(dim=0).mean(dim=1).cpu().numpy().reshape(xx.shape)
+
     im = ax.pcolormesh(xx, yy, pixel_std, cmap='viridis', shading='auto')
     fig.colorbar(im, ax=ax, label='Standard deviation of pixel values')
 
@@ -645,6 +643,10 @@ if __name__ == "__main__":
             raise FileNotFoundError(f"No model_run*.pt found in {args.experiment}")
         print(f"Found {len(model_paths)} trained models")
  
+        torch.manual_seed(args.seed)
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        
         all_model_geodesics = []
         all_model_latents = []
         all_geo_dists = []   # shape: [num_models, num_pairs]
