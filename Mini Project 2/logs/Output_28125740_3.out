@@ -1,0 +1,675 @@
+# Options
+batch_size = 32
+device = cuda
+epochs_per_decoder = 50
+experiment = expB_d3
+latent_dim = 2
+mode = train
+num_curves = 25
+num_decoders = 3
+num_iter = 2000
+num_reruns = 10
+num_t = 20
+opt_lr = 0.001
+seed = 42
+Train: 2048, Test: 2048
+
+Training run 1/10 (seed=42)
+
+Training run 2/10 (seed=43)
+
+Training run 3/10 (seed=44)
+
+Training run 4/10 (seed=45)
+
+Training run 5/10 (seed=46)
+
+Training run 6/10 (seed=47)
+
+Training run 7/10 (seed=48)
+
+Training run 8/10 (seed=49)
+
+Training run 9/10 (seed=50)
+
+Training run 10/10 (seed=51)
+# Options
+batch_size = 32
+device = cuda
+epochs_per_decoder = 50
+experiment = expB_d3
+latent_dim = 2
+mode = geodesics
+num_curves = 25
+num_decoders = 3
+num_iter = 2000
+num_reruns = 10
+num_t = 20
+opt_lr = 0.001
+seed = 42
+Train: 2048, Test: 2048
+Found 10 trained models
+
+Model 1/10: expB_d3/model_run1.pt
+  Pair 1/25, iter 1/2000: energy=14.0575
+  Pair 1/25, iter 501/2000: energy=15.8195
+  Pair 1/25, iter 1001/2000: energy=10.3381
+  Pair 1/25, iter 1501/2000: energy=14.4542
+  Pair 1 distances: geo=16.7354, euc=2.5363
+
+  Pair 2/25, iter 1/2000: energy=16.2636
+  Pair 2/25, iter 501/2000: energy=13.9234
+  Pair 2/25, iter 1001/2000: energy=12.4114
+  Pair 2/25, iter 1501/2000: energy=14.1871
+  Pair 2 distances: geo=16.8851, euc=4.8075
+
+  Pair 3/25, iter 1/2000: energy=28.3918
+  Pair 3/25, iter 501/2000: energy=27.3912
+  Pair 3/25, iter 1001/2000: energy=30.9905
+  Pair 3/25, iter 1501/2000: energy=24.4808
+  Pair 3 distances: geo=22.5625, euc=8.3699
+
+  Pair 4/25, iter 1/2000: energy=14.9237
+  Pair 4/25, iter 501/2000: energy=10.7794
+  Pair 4/25, iter 1001/2000: energy=12.3939
+  Pair 4/25, iter 1501/2000: energy=13.2460
+  Pair 4 distances: geo=16.2312, euc=4.0049
+
+  Pair 5/25, iter 1/2000: energy=20.9662
+  Pair 5/25, iter 501/2000: energy=18.8793
+  Pair 5/25, iter 1001/2000: energy=23.2946
+  Pair 5/25, iter 1501/2000: energy=19.8822
+  Pair 5 distances: geo=20.2521, euc=7.0045
+
+  Pair 6/25, iter 1/2000: energy=20.1935
+  Pair 6/25, iter 501/2000: energy=20.6117
+  Pair 6/25, iter 1001/2000: energy=17.3238
+  Pair 6/25, iter 1501/2000: energy=18.4992
+  Pair 6 distances: geo=18.7389, euc=5.5429
+
+  Pair 7/25, iter 1/2000: energy=11.9146
+  Pair 7/25, iter 501/2000: energy=10.6785
+  Pair 7/25, iter 1001/2000: energy=10.2316
+  Pair 7/25, iter 1501/2000: energy=9.8830
+  Pair 7 distances: geo=13.6383, euc=2.2680
+
+  Pair 8/25, iter 1/2000: energy=9.7841
+  Pair 8/25, iter 501/2000: energy=10.4956
+  Pair 8/25, iter 1001/2000: energy=9.9064
+  Pair 8/25, iter 1501/2000: energy=8.7058
+  Pair 8 distances: geo=12.9760, euc=2.5271
+
+  Pair 9/25, iter 1/2000: energy=25.2197
+  Pair 9/25, iter 501/2000: energy=24.8085
+  Pair 9/25, iter 1001/2000: energy=23.6882
+  Pair 9/25, iter 1501/2000: energy=23.6785
+  Pair 9 distances: geo=20.8785, euc=7.1576
+
+  Pair 10/25, iter 1/2000: energy=15.2148
+  Pair 10/25, iter 501/2000: energy=14.4480
+  Pair 10/25, iter 1001/2000: energy=14.1610
+  Pair 10/25, iter 1501/2000: energy=14.4969
+  Pair 10 distances: geo=16.6115, euc=4.7461
+
+  Pair 11/25, iter 1/2000: energy=12.6764
+  Pair 11/25, iter 501/2000: energy=11.3347
+  Pair 11/25, iter 1001/2000: energy=9.3386
+  Pair 11/25, iter 1501/2000: energy=9.2969
+  Pair 11 distances: geo=14.1483, euc=3.3359
+
+  Pair 12/25, iter 1/2000: energy=22.2425
+  Pair 12/25, iter 501/2000: energy=21.2856
+  Pair 12/25, iter 1001/2000: energy=20.2559
+  Pair 12/25, iter 1501/2000: energy=16.6484
+  Pair 12 distances: geo=19.1494, euc=6.3763
+
+  Pair 13/25, iter 1/2000: energy=12.7909
+  Pair 13/25, iter 501/2000: energy=11.0379
+  Pair 13/25, iter 1001/2000: energy=14.0391
+  Pair 13/25, iter 1501/2000: energy=11.7241
+  Pair 13 distances: geo=15.2574, euc=3.9051
+
+  Pair 14/25, iter 1/2000: energy=18.3110
+  Pair 14/25, iter 501/2000: energy=15.5254
+  Pair 14/25, iter 1001/2000: energy=19.1852
+  Pair 14/25, iter 1501/2000: energy=20.0084
+  Pair 14 distances: geo=17.6618, euc=4.9535
+
+  Pair 15/25, iter 1/2000: energy=15.8506
+  Pair 15/25, iter 501/2000: energy=14.6426
+  Pair 15/25, iter 1001/2000: energy=13.8148
+  Pair 15/25, iter 1501/2000: energy=15.4558
+  Pair 15 distances: geo=17.6256, euc=5.9247
+
+  Pair 16/25, iter 1/2000: energy=30.6010
+  Pair 16/25, iter 501/2000: energy=27.6318
+  Pair 16/25, iter 1001/2000: energy=23.3943
+  Pair 16/25, iter 1501/2000: energy=26.6918
+  Pair 16 distances: geo=22.5490, euc=7.6704
+
+  Pair 17/25, iter 1/2000: energy=11.4881
+  Pair 17/25, iter 501/2000: energy=8.9311
+  Pair 17/25, iter 1001/2000: energy=10.3188
+  Pair 17/25, iter 1501/2000: energy=6.6697
+  Pair 17 distances: geo=13.0853, euc=1.5150
+
+  Pair 18/25, iter 1/2000: energy=26.8466
+  Pair 18/25, iter 501/2000: energy=21.1125
+  Pair 18/25, iter 1001/2000: energy=14.9955
+  Pair 18/25, iter 1501/2000: energy=20.0100
+  Pair 18 distances: geo=18.9086, euc=3.3361
+
+  Pair 19/25, iter 1/2000: energy=16.3750
+  Pair 19/25, iter 501/2000: energy=15.9449
+  Pair 19/25, iter 1001/2000: energy=17.2381
+  Pair 19/25, iter 1501/2000: energy=11.7087
+  Pair 19 distances: geo=18.2486, euc=6.1984
+
+  Pair 20/25, iter 1/2000: energy=25.4103
+  Pair 20/25, iter 501/2000: energy=24.6043
+  Pair 20/25, iter 1001/2000: energy=23.1745
+  Pair 20/25, iter 1501/2000: energy=29.2104
+  Pair 20 distances: geo=21.7461, euc=6.5644
+
+  Pair 21/25, iter 1/2000: energy=22.6964
+  Pair 21/25, iter 501/2000: energy=17.7470
+  Pair 21/25, iter 1001/2000: energy=20.2377
+  Pair 21/25, iter 1501/2000: energy=19.5773
+  Pair 21 distances: geo=19.0403, euc=5.5029
+
+  Pair 22/25, iter 1/2000: energy=18.4338
+  Pair 22/25, iter 501/2000: energy=17.1556
+  Pair 22/25, iter 1001/2000: energy=13.2124
+  Pair 22/25, iter 1501/2000: energy=13.2265
+  Pair 22 distances: geo=17.5878, euc=4.0309
+
+  Pair 23/25, iter 1/2000: energy=13.7828
+  Pair 23/25, iter 501/2000: energy=13.2695
+  Pair 23/25, iter 1001/2000: energy=14.0095
+  Pair 23/25, iter 1501/2000: energy=11.1016
+  Pair 23 distances: geo=15.8448, euc=4.0925
+
+  Pair 24/25, iter 1/2000: energy=23.2432
+  Pair 24/25, iter 501/2000: energy=26.2752
+  Pair 24/25, iter 1001/2000: energy=22.4825
+  Pair 24/25, iter 1501/2000: energy=23.3697
+  Pair 24 distances: geo=21.0077, euc=7.0940
+
+  Pair 25/25, iter 1/2000: energy=18.9508
+  Pair 25/25, iter 501/2000: energy=16.5616
+  Pair 25/25, iter 1001/2000: energy=18.4202
+  Pair 25/25, iter 1501/2000: energy=17.3480
+  Pair 25 distances: geo=18.1831, euc=6.0334
+
+
+Model 2/10: expB_d3/model_run2.pt
+  Pair 1 distances: geo=15.5439, euc=2.1537
+
+  Pair 2 distances: geo=15.8010, euc=3.4622
+
+  Pair 3 distances: geo=20.2346, euc=6.3239
+
+  Pair 4 distances: geo=16.1714, euc=3.7792
+
+  Pair 5 distances: geo=19.2442, euc=5.1216
+
+  Pair 6 distances: geo=17.9963, euc=4.6990
+
+  Pair 7 distances: geo=13.4695, euc=2.2406
+
+  Pair 8 distances: geo=12.1249, euc=1.9522
+
+  Pair 9 distances: geo=21.2423, euc=5.7623
+
+  Pair 10 distances: geo=16.4903, euc=4.1257
+
+  Pair 11 distances: geo=13.6719, euc=3.0709
+
+  Pair 12 distances: geo=18.4653, euc=4.3402
+
+  Pair 13 distances: geo=14.2429, euc=3.4561
+
+  Pair 14 distances: geo=17.6674, euc=3.6868
+
+  Pair 15 distances: geo=17.3694, euc=4.5795
+
+  Pair 16 distances: geo=22.1802, euc=5.3914
+
+  Pair 17 distances: geo=12.3159, euc=1.2446
+
+  Pair 18 distances: geo=18.1826, euc=2.3679
+
+  Pair 19 distances: geo=17.4171, euc=4.5851
+
+  Pair 20 distances: geo=21.0706, euc=4.8237
+
+  Pair 21 distances: geo=18.2259, euc=4.9350
+
+  Pair 22 distances: geo=17.9412, euc=4.0033
+
+  Pair 23 distances: geo=14.9451, euc=2.9650
+
+  Pair 24 distances: geo=21.8346, euc=4.9464
+
+  Pair 25 distances: geo=17.3546, euc=4.5566
+
+
+Model 3/10: expB_d3/model_run3.pt
+  Pair 1 distances: geo=17.1403, euc=2.3790
+
+  Pair 2 distances: geo=17.3702, euc=4.0441
+
+  Pair 3 distances: geo=21.8495, euc=6.7214
+
+  Pair 4 distances: geo=17.1789, euc=3.8693
+
+  Pair 5 distances: geo=21.0458, euc=5.9235
+
+  Pair 6 distances: geo=18.7896, euc=4.9343
+
+  Pair 7 distances: geo=14.3396, euc=2.3036
+
+  Pair 8 distances: geo=13.4272, euc=2.1602
+
+  Pair 9 distances: geo=22.1999, euc=6.1064
+
+  Pair 10 distances: geo=17.1306, euc=4.2256
+
+  Pair 11 distances: geo=14.6637, euc=3.1372
+
+  Pair 12 distances: geo=19.9784, euc=5.0320
+
+  Pair 13 distances: geo=15.5494, euc=3.5914
+
+  Pair 14 distances: geo=18.6719, euc=4.1536
+
+  Pair 15 distances: geo=18.7444, euc=5.1332
+
+  Pair 16 distances: geo=23.4534, euc=6.2928
+
+  Pair 17 distances: geo=13.3105, euc=1.2186
+
+  Pair 18 distances: geo=19.3348, euc=2.7353
+
+  Pair 19 distances: geo=18.1509, euc=4.7803
+
+  Pair 20 distances: geo=22.3893, euc=5.4083
+
+  Pair 21 distances: geo=19.2051, euc=5.0098
+
+  Pair 22 distances: geo=18.0528, euc=3.5208
+
+  Pair 23 distances: geo=16.3668, euc=3.3245
+
+  Pair 24 distances: geo=23.1139, euc=5.6935
+
+  Pair 25 distances: geo=18.7501, euc=5.1507
+
+
+Model 4/10: expB_d3/model_run4.pt
+  Pair 1 distances: geo=17.9128, euc=2.3531
+
+  Pair 2 distances: geo=17.4753, euc=4.1985
+
+  Pair 3 distances: geo=22.2025, euc=7.4597
+
+  Pair 4 distances: geo=17.1627, euc=3.8060
+
+  Pair 5 distances: geo=20.8804, euc=6.0825
+
+  Pair 6 distances: geo=18.3652, euc=4.6683
+
+  Pair 7 distances: geo=14.4320, euc=2.2751
+
+  Pair 8 distances: geo=13.6167, euc=2.5166
+
+  Pair 9 distances: geo=21.4995, euc=6.3618
+
+  Pair 10 distances: geo=17.5421, euc=4.6297
+
+  Pair 11 distances: geo=14.5813, euc=3.1679
+
+  Pair 12 distances: geo=19.4079, euc=5.7610
+
+  Pair 13 distances: geo=15.1686, euc=3.4857
+
+  Pair 14 distances: geo=18.0995, euc=4.4580
+
+  Pair 15 distances: geo=18.6200, euc=5.8336
+
+  Pair 16 distances: geo=22.1549, euc=6.2028
+
+  Pair 17 distances: geo=13.8274, euc=1.3366
+
+  Pair 18 distances: geo=19.4580, euc=2.7384
+
+  Pair 19 distances: geo=18.3472, euc=5.3763
+
+  Pair 20 distances: geo=21.5338, euc=5.5535
+
+  Pair 21 distances: geo=19.2160, euc=4.9586
+
+  Pair 22 distances: geo=18.2341, euc=3.4329
+
+  Pair 23 distances: geo=15.9444, euc=3.3077
+
+  Pair 24 distances: geo=21.1639, euc=5.8278
+
+  Pair 25 distances: geo=18.5079, euc=5.4383
+
+
+Model 5/10: expB_d3/model_run5.pt
+  Pair 1 distances: geo=18.3983, euc=2.7483
+
+  Pair 2 distances: geo=17.3380, euc=4.3631
+
+  Pair 3 distances: geo=22.3187, euc=7.6829
+
+  Pair 4 distances: geo=17.4963, euc=4.5437
+
+  Pair 5 distances: geo=21.5284, euc=6.6541
+
+  Pair 6 distances: geo=18.7443, euc=5.6548
+
+  Pair 7 distances: geo=13.3675, euc=2.1709
+
+  Pair 8 distances: geo=12.7900, euc=2.2224
+
+  Pair 9 distances: geo=21.5027, euc=6.6288
+
+  Pair 10 distances: geo=17.3627, euc=5.1604
+
+  Pair 11 distances: geo=14.1269, euc=3.2777
+
+  Pair 12 distances: geo=18.9942, euc=5.7276
+
+  Pair 13 distances: geo=14.7523, euc=3.6420
+
+  Pair 14 distances: geo=17.8708, euc=4.7660
+
+  Pair 15 distances: geo=18.8077, euc=6.1278
+
+  Pair 16 distances: geo=24.3506, euc=7.3987
+
+  Pair 17 distances: geo=13.0715, euc=1.3593
+
+  Pair 18 distances: geo=20.1781, euc=3.2511
+
+  Pair 19 distances: geo=18.9219, euc=6.2178
+
+  Pair 20 distances: geo=23.0342, euc=6.2985
+
+  Pair 21 distances: geo=19.9128, euc=5.3094
+
+  Pair 22 distances: geo=18.4631, euc=4.1612
+
+  Pair 23 distances: geo=15.8742, euc=3.6920
+
+  Pair 24 distances: geo=22.8877, euc=6.6301
+
+  Pair 25 distances: geo=18.7418, euc=6.1154
+
+
+Model 6/10: expB_d3/model_run6.pt
+  Pair 1 distances: geo=15.6527, euc=2.6867
+
+  Pair 2 distances: geo=16.3203, euc=4.6191
+
+  Pair 3 distances: geo=22.3438, euc=8.0801
+
+  Pair 4 distances: geo=16.4878, euc=4.6820
+
+  Pair 5 distances: geo=20.2312, euc=7.0728
+
+  Pair 6 distances: geo=18.1032, euc=5.5637
+
+  Pair 7 distances: geo=13.1573, euc=2.0369
+
+  Pair 8 distances: geo=12.6237, euc=2.1303
+
+  Pair 9 distances: geo=21.3103, euc=6.9594
+
+  Pair 10 distances: geo=16.8964, euc=5.1216
+
+  Pair 11 distances: geo=14.2334, euc=3.1732
+
+  Pair 12 distances: geo=19.3280, euc=6.6465
+
+  Pair 13 distances: geo=14.7838, euc=3.4426
+
+  Pair 14 distances: geo=18.3481, euc=5.1551
+
+  Pair 15 distances: geo=18.1775, euc=6.4428
+
+  Pair 16 distances: geo=23.0846, euc=7.8421
+
+  Pair 17 distances: geo=13.7341, euc=1.4642
+
+  Pair 18 distances: geo=19.3688, euc=3.4856
+
+  Pair 19 distances: geo=17.9864, euc=5.8856
+
+  Pair 20 distances: geo=21.9162, euc=6.7915
+
+  Pair 21 distances: geo=19.3329, euc=5.4801
+
+  Pair 22 distances: geo=17.1017, euc=3.4210
+
+  Pair 23 distances: geo=15.2031, euc=3.8361
+
+  Pair 24 distances: geo=22.0026, euc=7.4115
+
+  Pair 25 distances: geo=18.1446, euc=6.1499
+
+
+Model 7/10: expB_d3/model_run7.pt
+  Pair 1 distances: geo=16.1652, euc=2.4476
+
+  Pair 2 distances: geo=17.2217, euc=4.8076
+
+  Pair 3 distances: geo=21.9605, euc=7.5677
+
+  Pair 4 distances: geo=16.4292, euc=3.9620
+
+  Pair 5 distances: geo=20.7365, euc=6.8052
+
+  Pair 6 distances: geo=17.6584, euc=4.7951
+
+  Pair 7 distances: geo=13.2667, euc=2.1941
+
+  Pair 8 distances: geo=12.5119, euc=2.3754
+
+  Pair 9 distances: geo=21.4627, euc=6.5580
+
+  Pair 10 distances: geo=16.9807, euc=4.7779
+
+  Pair 11 distances: geo=13.6202, euc=3.0733
+
+  Pair 12 distances: geo=19.7528, euc=6.1762
+
+  Pair 13 distances: geo=14.2976, euc=3.3258
+
+  Pair 14 distances: geo=18.2731, euc=4.8742
+
+  Pair 15 distances: geo=18.7789, euc=6.2689
+
+  Pair 16 distances: geo=22.8868, euc=6.9883
+
+  Pair 17 distances: geo=12.7254, euc=1.2816
+
+  Pair 18 distances: geo=19.0779, euc=2.7567
+
+  Pair 19 distances: geo=18.5653, euc=5.7855
+
+  Pair 20 distances: geo=21.8327, euc=6.2783
+
+  Pair 21 distances: geo=19.3677, euc=5.2514
+
+  Pair 22 distances: geo=17.2827, euc=3.3980
+
+  Pair 23 distances: geo=15.8216, euc=3.5277
+
+  Pair 24 distances: geo=21.7290, euc=6.7616
+
+  Pair 25 distances: geo=17.9662, euc=5.6413
+
+
+Model 8/10: expB_d3/model_run8.pt
+  Pair 1 distances: geo=16.1530, euc=2.4669
+
+  Pair 2 distances: geo=16.3038, euc=4.2217
+
+  Pair 3 distances: geo=20.9457, euc=7.5609
+
+  Pair 4 distances: geo=15.7762, euc=3.9583
+
+  Pair 5 distances: geo=21.0116, euc=6.8038
+
+  Pair 6 distances: geo=18.7191, euc=5.4107
+
+  Pair 7 distances: geo=14.2618, euc=2.4732
+
+  Pair 8 distances: geo=13.0289, euc=2.1517
+
+  Pair 9 distances: geo=20.7857, euc=6.4996
+
+  Pair 10 distances: geo=17.0881, euc=4.7573
+
+  Pair 11 distances: geo=14.2198, euc=3.2953
+
+  Pair 12 distances: geo=18.8172, euc=5.2669
+
+  Pair 13 distances: geo=14.2653, euc=3.5378
+
+  Pair 14 distances: geo=18.6265, euc=4.8758
+
+  Pair 15 distances: geo=17.6734, euc=5.6983
+
+  Pair 16 distances: geo=23.2640, euc=6.7748
+
+  Pair 17 distances: geo=12.4638, euc=1.3548
+
+  Pair 18 distances: geo=21.5566, euc=3.2541
+
+  Pair 19 distances: geo=18.3509, euc=5.8626
+
+  Pair 20 distances: geo=21.4960, euc=5.6249
+
+  Pair 21 distances: geo=18.0658, euc=5.2571
+
+  Pair 22 distances: geo=18.2932, euc=4.2179
+
+  Pair 23 distances: geo=14.9674, euc=3.4832
+
+  Pair 24 distances: geo=22.9229, euc=6.4385
+
+  Pair 25 distances: geo=17.8722, euc=5.4200
+
+
+Model 9/10: expB_d3/model_run9.pt
+  Pair 1 distances: geo=16.7364, euc=2.4618
+
+  Pair 2 distances: geo=16.3536, euc=4.5861
+
+  Pair 3 distances: geo=20.4949, euc=7.3095
+
+  Pair 4 distances: geo=16.1248, euc=3.8398
+
+  Pair 5 distances: geo=19.7680, euc=6.4623
+
+  Pair 6 distances: geo=17.3165, euc=4.9056
+
+  Pair 7 distances: geo=13.2042, euc=2.2436
+
+  Pair 8 distances: geo=12.0913, euc=2.1717
+
+  Pair 9 distances: geo=21.7087, euc=6.8097
+
+  Pair 10 distances: geo=16.4780, euc=4.6285
+
+  Pair 11 distances: geo=13.6420, euc=3.1437
+
+  Pair 12 distances: geo=18.2296, euc=5.3565
+
+  Pair 13 distances: geo=14.2755, euc=3.5443
+
+  Pair 14 distances: geo=18.3384, euc=4.6689
+
+  Pair 15 distances: geo=17.2429, euc=5.7474
+
+  Pair 16 distances: geo=20.7959, euc=6.4902
+
+  Pair 17 distances: geo=12.3974, euc=1.3808
+
+  Pair 18 distances: geo=20.2988, euc=2.7539
+
+  Pair 19 distances: geo=17.8451, euc=5.7553
+
+  Pair 20 distances: geo=20.7737, euc=5.5991
+
+  Pair 21 distances: geo=19.4334, euc=5.2274
+
+  Pair 22 distances: geo=16.9275, euc=3.5913
+
+  Pair 23 distances: geo=14.8005, euc=3.3909
+
+  Pair 24 distances: geo=20.3189, euc=6.1186
+
+  Pair 25 distances: geo=17.3082, euc=5.4750
+
+
+Model 10/10: expB_d3/model_run10.pt
+  Pair 1 distances: geo=17.9055, euc=2.2994
+
+  Pair 2 distances: geo=17.4313, euc=4.2783
+
+  Pair 3 distances: geo=21.5922, euc=7.3390
+
+  Pair 4 distances: geo=17.5791, euc=4.1449
+
+  Pair 5 distances: geo=20.7626, euc=6.4423
+
+  Pair 6 distances: geo=18.5486, euc=5.2849
+
+  Pair 7 distances: geo=13.6662, euc=2.2376
+
+  Pair 8 distances: geo=12.8752, euc=2.0820
+
+  Pair 9 distances: geo=20.8020, euc=6.1658
+
+  Pair 10 distances: geo=17.7427, euc=5.0191
+
+  Pair 11 distances: geo=14.1085, euc=2.9975
+
+  Pair 12 distances: geo=19.4487, euc=5.7270
+
+  Pair 13 distances: geo=15.0588, euc=3.5357
+
+  Pair 14 distances: geo=18.7867, euc=4.9498
+
+  Pair 15 distances: geo=18.7768, euc=5.9301
+
+  Pair 16 distances: geo=23.2678, euc=7.0345
+
+  Pair 17 distances: geo=13.7802, euc=1.4708
+
+  Pair 18 distances: geo=20.3198, euc=3.0986
+
+  Pair 19 distances: geo=18.6136, euc=5.4922
+
+  Pair 20 distances: geo=21.9170, euc=6.1812
+
+  Pair 21 distances: geo=19.8597, euc=5.3991
+
+  Pair 22 distances: geo=18.5692, euc=3.6036
+
+  Pair 23 distances: geo=16.5683, euc=4.0915
+
+  Pair 24 distances: geo=22.2629, euc=6.5531
+
+  Pair 25 distances: geo=18.8290, euc=5.8855
+
+Saved distances to expB_d3/geo_dists.npy and euc_dists.npy
+
+Mean CoV (geodesic, 3 decoders): 0.0327
+Mean CoV (Euclidean, 3 decoders): 0.0789
