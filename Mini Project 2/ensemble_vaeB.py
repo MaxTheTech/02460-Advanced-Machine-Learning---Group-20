@@ -138,14 +138,10 @@ class VAE(nn.Module):
             self.decoder(z).log_prob(x) - q.log_prob(z) + self.prior().log_prob(z)
         )
         else:
-            elbos = []
-            for decoder in self.decoder:
-                p = decoder(z)
-                elbo = torch.mean(
-                    p.log_prob(x) - q.log_prob(z) + self.prior().log_prob(z)
-                )
-                elbos.append(elbo)
-            elbo = torch.stack(elbos, dim=0).mean(dim=0)
+            decoder = random.choice(list(self.decoder))
+            p = decoder(z)
+            elbo = torch.mean(
+            p.log_prob(x) - q.log_prob(z) + self.prior().log_prob(z))
         return elbo
 
     def sample(self, n_samples=1):
@@ -302,7 +298,7 @@ class GeodesicSolver(nn.Module):
             seg_lengths = (dc.unsqueeze(1) @ G @ dc.unsqueeze(2)).squeeze().sqrt()
             return seg_lengths.sum()
         else:
-            # Surely this is ot good
+            # sqrt of the energy
             total_distance = 0
             for i in range(len(c) - 1):
                 expected_sq_dist = 0
@@ -732,5 +728,3 @@ if __name__ == "__main__":
             np.save(os.path.join(args.experiment, "cov_geo.npy"), cov_geo)
             np.save(os.path.join(args.experiment, "cov_euc.npy"), cov_euc)
         
-
-
