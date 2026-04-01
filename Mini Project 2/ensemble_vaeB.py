@@ -336,9 +336,11 @@ def plot_geodesics(model, all_latents, all_labels, geodesics, num_classes, devic
             decoded = model.decoder.decoder_net(z_grid).reshape(z_grid.shape[0], -1)
             pixel_std = decoded.std(dim=1).cpu().numpy().reshape(xx.shape)
         else:
-            decoder_outputs = torch.stack([ decoder.decoder_net(z_grid).reshape(z_grid.shape[0], -1) for decoder in model.decoder], dim=0)  # [K, N_grid, D]
-            pixel_std = decoder_outputs.std(dim=0).mean(dim=1).cpu().numpy().reshape(xx.shape)
-
+            average_decoded = torch.zeros(z_grid.shape[0], 28*28, device=device)
+            for decoder in model.decoder:
+                average_decoded += decoder.decoder_net(z_grid).reshape(z_grid.shape[0], -1)
+            decoded = average_decoded / len(model.decoder)
+            pixel_std = decoded.std(dim=1).cpu().numpy().reshape(xx.shape)
     im = ax.pcolormesh(xx, yy, pixel_std, cmap='viridis', shading='auto')
     fig.colorbar(im, ax=ax, label='Standard deviation of pixel values')
 
@@ -400,7 +402,7 @@ if __name__ == "__main__":
         "mode",
         type=str,
         default="train",
-        choices=["train", "sample", "eval", "geodesics"],
+        choices=["train", "sample", "eval", "geodesics", "cov"],
         help="what to do when running the script (default: %(default)s)",
     )
     parser.add_argument(
@@ -557,63 +559,98 @@ if __name__ == "__main__":
 
 
 
+    # Helper to load a run's encoder + first K decoders into a VAE
+    def load_run_model(run_folder, K):
+        enc = GaussianEncoder(new_encoder()).to(device)
+        enc.load_state_dict(torch.load(f"{run_folder}/encoder.pt", weights_only=True))
+        if K == 1:
+            dec = GaussianDecoder(new_decoder()).to(device)
+            dec.load_state_dict(torch.load(f"{run_folder}/decoder_0.pt", weights_only=True))
+            model = VAE(GaussianPrior(M), dec, enc, num_decoders=1).to(device)
+        else:
+            model = VAE(GaussianPrior(M), GaussianDecoder(new_decoder()), enc, num_decoders=K).to(device)
+            for d in range(K):
+                model.decoder[d].load_state_dict(
+                    torch.load(f"{run_folder}/decoder_{d}.pt", weights_only=True)
+                )
+        return model
+
     # Choose mode to run
     if args.mode == "train":
         os.makedirs(args.experiment, exist_ok=True)
 
         for run in range(args.num_reruns):
+            run_folder = os.path.join(args.experiment, f"run_{run+1}")
+            if os.path.exists(os.path.join(run_folder, f"decoder_{args.num_decoders-1}.pt")):
+                print(f"Run {run+1} already trained, skipping")
+                continue
+            os.makedirs(run_folder, exist_ok=True)
+
             run_seed = args.seed + run
             torch.manual_seed(run_seed)
             random.seed(run_seed)
             np.random.seed(run_seed)
             print(f"\nTraining run {run+1}/{args.num_reruns} (seed={run_seed})")
 
+            # Phase 1: train encoder + decoder_0 jointly
             model = VAE(
                 GaussianPrior(M),
                 GaussianDecoder(new_decoder()),
                 GaussianEncoder(new_encoder()),
-                num_decoders=args.num_decoders,
+                num_decoders=1,
             ).to(device)
             optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-            train(model, optimizer, mnist_train_loader, args.epochs_per_decoder, args.device)
+            print(f"  Training encoder + decoder_0")
+            train(model, optimizer, mnist_train_loader, args.epochs_per_decoder, device)
+            torch.save(model.encoder.state_dict(), f"{run_folder}/encoder.pt")
+            torch.save(model.decoder.state_dict(), f"{run_folder}/decoder_0.pt")
 
-            torch.save(model.state_dict(), os.path.join(args.experiment, f"model_run{run+1}.pt"))
+            # Phase 2: freeze encoder, train each additional decoder independently
+            for param in model.encoder.parameters():
+                param.requires_grad = False
+
+            for d in range(1, args.num_decoders):
+                decoder = GaussianDecoder(new_decoder()).to(device)
+                tmp = VAE(GaussianPrior(M), decoder, model.encoder, num_decoders=1).to(device)
+                optimizer = torch.optim.Adam(decoder.parameters(), lr=1e-3)
+                print(f"  Training decoder_{d} (encoder frozen)")
+                train(tmp, optimizer, mnist_train_loader, args.epochs_per_decoder, device)
+                torch.save(decoder.state_dict(), f"{run_folder}/decoder_{d}.pt")
 
 
     elif args.mode == "sample":
-        model_paths = [os.path.join(args.experiment, f"model_run{r+1}.pt")
+        run_folders = [os.path.join(args.experiment, f"run_{r+1}")
                        for r in range(args.num_reruns)
-                       if os.path.exists(os.path.join(args.experiment, f"model_run{r+1}.pt"))]
-        if not model_paths:
-            raise FileNotFoundError(f"No model_run*.pt found in {args.experiment}")
+                       if os.path.exists(os.path.join(args.experiment, f"run_{r+1}", "encoder.pt"))]
+        if not run_folders:
+            raise FileNotFoundError(f"No run_*/encoder.pt found in {args.experiment}")
 
         data = next(iter(mnist_test_loader))[0].to(device)
 
-        for m, mpath in enumerate(model_paths):
-            model = VAE(GaussianPrior(M), GaussianDecoder(new_decoder()), GaussianEncoder(new_encoder()), num_decoders=args.num_decoders).to(device)
-            model.load_state_dict(torch.load(mpath, weights_only=True))
+        for m, run_folder in enumerate(run_folders):
+            model = load_run_model(run_folder, args.num_decoders)
             model.eval()
 
             with torch.no_grad():
                 samples = model.sample(64).cpu()
                 save_image(samples.view(64, 1, 28, 28), os.path.join(args.experiment, f"samples_run{m+1}.png"))
 
-                recon = model.decoder(model.encoder(data).mean).mean
+                dec0 = model.decoder if model.num_decoders == 1 else model.decoder[0]
+                recon = dec0(model.encoder(data).mean).mean
                 save_image(torch.cat([data.cpu(), recon.cpu()], dim=0), os.path.join(args.experiment, f"reconstruction_means_run{m+1}.png"))
 
             print(f"Run {m+1}: saved samples and reconstructions")
 
 
     elif args.mode == "eval":
-        model_paths = [os.path.join(args.experiment, f"model_run{r+1}.pt")
+        run_folders = [os.path.join(args.experiment, f"run_{r+1}")
                        for r in range(args.num_reruns)
-                       if os.path.exists(os.path.join(args.experiment, f"model_run{r+1}.pt"))]
-        if not model_paths:
-            raise FileNotFoundError(f"No model_run*.pt found in {args.experiment}")
+                       if os.path.exists(os.path.join(args.experiment, f"run_{r+1}", "encoder.pt"))]
+        if not run_folders:
+            raise FileNotFoundError(f"No run_*/encoder.pt found in {args.experiment}")
 
-        for m, mpath in enumerate(model_paths):
-            model = VAE(GaussianPrior(M), GaussianDecoder(new_decoder()), GaussianEncoder(new_encoder()), num_decoders=args.num_decoders).to(device)
-            model.load_state_dict(torch.load(mpath, weights_only=True))
+        for m, run_folder in enumerate(run_folders):
+            model = load_run_model(run_folder, args.num_decoders)
             model.eval()
 
             elbos = []
@@ -630,57 +667,46 @@ if __name__ == "__main__":
     elif args.mode == "geodesics":
         # fixed test-data pairs (same indices across all models for CoV)
         test_pairs = pick_test_pairs(mnist_test_loader, args.num_curves, seed=args.seed)
- 
+
         # retrieve test data
         all_test_x = torch.cat([x for x, _ in mnist_test_loader], dim=0)
         all_test_y = torch.cat([y for _, y in mnist_test_loader], dim=0)
- 
-        # find all trained models
-        model_paths = [os.path.join(args.experiment, f"model_run{r+1}.pt")
+
+        # find all trained run folders
+        run_folders = [os.path.join(args.experiment, f"run_{r+1}")
                        for r in range(args.num_reruns)
-                       if os.path.exists(os.path.join(args.experiment, f"model_run{r+1}.pt"))]
-        if not model_paths:
-            raise FileNotFoundError(f"No model_run*.pt found in {args.experiment}")
-        print(f"Found {len(model_paths)} trained models")
- 
-        torch.manual_seed(args.seed)
-        random.seed(args.seed)
-        np.random.seed(args.seed)
-        
+                       if os.path.exists(os.path.join(args.experiment, f"run_{r+1}", "encoder.pt"))]
+        if not run_folders:
+            raise FileNotFoundError(f"No run_*/encoder.pt found in {args.experiment}")
+        print(f"Found {len(run_folders)} trained runs")
+
         all_model_geodesics = []
         all_model_latents = []
-        all_geo_dists = []   # shape: [num_models, num_pairs]
-        all_euc_dists = []   # shape: [num_models, num_pairs]
-        for m, mpath in enumerate(model_paths):
-            print(f"\nModel {m+1}/{len(model_paths)}: {mpath}")
- 
-            # load model
-            model = VAE(GaussianPrior(M), GaussianDecoder(new_decoder()), GaussianEncoder(new_encoder()), num_decoders=args.num_decoders).to(device)
-            model.load_state_dict(torch.load(mpath, weights_only=True))
+        all_geo_dists = []
+        all_euc_dists = []
+        for m, run_folder in enumerate(run_folders):
+            print(f"\nRun {m+1}/{len(run_folders)}: {run_folder}")
+
+            model = load_run_model(run_folder, args.num_decoders)
             model.eval()
-            # needed because jvp creates a computation graph, don't want to accidentally update VAE parameters
             for p in model.parameters():
                 p.requires_grad_(False)
- 
-            # encode all test data with this model
+
             with torch.no_grad():
                 all_latents = model.encoder(all_test_x.to(device)).mean.cpu()
             all_model_latents.append(all_latents)
- 
+
             geo_dists = []
             euc_dists = []
             model_geodesics = []
             for k, (idx_a, idx_b) in enumerate(test_pairs):
-                # retrieve pair endpoints
                 c0 = all_latents[idx_a].to(device)
                 c1 = all_latents[idx_b].to(device)
- 
-                # initialize solver
+
                 solver = GeodesicSolver(model, c0, c1, T=args.num_t)
                 optimizer = torch.optim.Adam(solver.parameters(), lr=args.opt_lr)
                 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.num_iter, eta_min=1e-4)
- 
-                # train solver
+
                 for it in range(args.num_iter):
                     optimizer.zero_grad()
                     energy = solver()
@@ -689,48 +715,68 @@ if __name__ == "__main__":
                     scheduler.step()
                     if m == 0 and it % 500 == 0:
                         print(f"  Pair {k+1}/{args.num_curves}, iter {it+1}/{args.num_iter}: energy={energy.item():.4f}")
- 
-                # calculate geodesic and euclidean distances
+
                 with torch.no_grad():
                     geo_dist = solver.geodesic_distance().item()
                     euc_dist = torch.norm(c1 - c0).item()
                 geo_dists.append(geo_dist)
                 euc_dists.append(euc_dist)
- 
-                print(f"  Pair {k+1} distances: geo={geo_dist:.4f}, euc={euc_dist:.4f}\n")
- 
-                # get geodesic curve points
+                print(f"  Pair {k+1} distances: geo={geo_dist:.4f}, euc={euc_dist:.4f}")
                 model_geodesics.append(solver.get_curve().detach().cpu())
-            
+
             all_model_geodesics.append(model_geodesics)
- 
             plot_geodesics(
                 model, all_model_latents[m], all_test_y, all_model_geodesics[m], num_classes, device,
-                title=f"Geodesics in latent space\n({args.num_decoders} decoder{'s' if args.num_decoders > 1 else ''}, run {m+1}/{args.num_reruns}, {args.num_curves} endpoint pairs)",
-                save_path=f"{args.experiment}/geodesics_n{args.num_curves}_run{m+1}.png",
+                title=f"Geodesics in latent space\n({args.num_decoders} decoder{'s' if args.num_decoders > 1 else ''}, run {m+1}/{len(run_folders)}, {args.num_curves} endpoint pairs)",
+                save_path=f"{args.experiment}/geodesics_n{args.num_curves}_K{args.num_decoders}_run{m+1}.png",
             )
             all_geo_dists.append(geo_dists)
             all_euc_dists.append(euc_dists)
- 
-        # Save distances for cross-experiment CoV plotting
-        np.save(os.path.join(args.experiment, "geo_dists.npy"), np.array(all_geo_dists))
-        np.save(os.path.join(args.experiment, "euc_dists.npy"), np.array(all_euc_dists))
-        print(f"Saved distances to {args.experiment}/geo_dists.npy and euc_dists.npy")
- 
-        # CoV within this experiment: across retrainings, per pair
-        # all_geo_dists: [M_reruns, num_pairs]
-        geo_arr = np.array(all_geo_dists)   # [M, P]
-        euc_arr = np.array(all_euc_dists)   # [M, P]
- 
+
+        np.save(os.path.join(args.experiment, f"geo_dists_K{args.num_decoders}.npy"), np.array(all_geo_dists))
+        np.save(os.path.join(args.experiment, f"euc_dists_K{args.num_decoders}.npy"), np.array(all_euc_dists))
+        print(f"Saved distances to {args.experiment}/geo_dists_K{args.num_decoders}.npy")
+
+        geo_arr = np.array(all_geo_dists)
+        euc_arr = np.array(all_euc_dists)
         if geo_arr.shape[0] > 1:
-            cov_geo = (geo_arr.std(axis=0) / geo_arr.mean(axis=0))   # [P]
-            cov_euc = (euc_arr.std(axis=0) / euc_arr.mean(axis=0))   # [P]
-            mean_cov_geo = cov_geo.mean()
-            mean_cov_euc = cov_euc.mean()
-            print(f"\nMean CoV (geodesic, {args.num_decoders} decoders): {mean_cov_geo:.4f}")
-            print(f"Mean CoV (Euclidean, {args.num_decoders} decoders): {mean_cov_euc:.4f}")
-            np.save(os.path.join(args.experiment, "cov_geo.npy"), cov_geo)
-            np.save(os.path.join(args.experiment, "cov_euc.npy"), cov_euc)
+            cov_geo = geo_arr.std(axis=0) / geo_arr.mean(axis=0)
+            cov_euc = euc_arr.std(axis=0) / euc_arr.mean(axis=0)
+            print(f"\nMean CoV (geodesic, K={args.num_decoders}): {cov_geo.mean():.4f}")
+            print(f"Mean CoV (Euclidean, K={args.num_decoders}): {cov_euc.mean():.4f}")
+
+    elif args.mode == "cov":
+        # Aggregate CoV across K values — run geodesics mode first for K=1..num_decoders
+        Ks = list(range(1, args.num_decoders + 1))
+        geod_covs = []
+        eucl_covs = []
+
+        for K in Ks:
+            geo_path = os.path.join(args.experiment, f"geo_dists_K{K}.npy")
+            euc_path = os.path.join(args.experiment, f"euc_dists_K{K}.npy")
+            if not os.path.exists(geo_path):
+                print(f"Missing {geo_path} — run geodesics mode with --num-decoders {K} first")
+                continue
+            geo_arr = np.load(geo_path)   # [reruns, pairs]
+            euc_arr = np.load(euc_path)
+            g_cov = (geo_arr.std(axis=0) / geo_arr.mean(axis=0)).mean()
+            e_cov = (euc_arr.std(axis=0) / euc_arr.mean(axis=0)).mean()
+            geod_covs.append(g_cov)
+            eucl_covs.append(e_cov)
+            print(f"K={K}: CoV geodesic={g_cov:.4f}, CoV euclidean={e_cov:.4f}")
+
+        fig, ax = plt.subplots(figsize=(6, 4))
+        # Euclidean CoV should be identical across K (same frozen encoder → same z positions)
+        ax.plot(Ks[:len(eucl_covs)], eucl_covs, 'o--', label='Euclidean')
+        ax.plot(Ks[:len(geod_covs)], geod_covs, 's-', label='Geodesic')
+        ax.set_xlabel('Ensemble decoders (K)')
+        ax.set_ylabel('Mean CoV')
+        ax.set_xticks(Ks)
+        ax.legend()
+        cov_path = os.path.join(args.experiment, 'cov_plot.png')
+        plt.savefig(cov_path, dpi=150, bbox_inches='tight')
+        print(f"Saved CoV plot to {cov_path}")
+        plt.show()
         
 
 
