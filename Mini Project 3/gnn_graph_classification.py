@@ -303,12 +303,13 @@ for name, hashes in sources.items():
     print(f'    Unique:         {100 * np.mean(unique):.1f}%')
     print(f'    Novel + unique: {100 * np.mean(novel_and_unique):.1f}%\n')
 
+
 # %% Plot histogram grid
 # Collect stats for training graphs, ER samples and DGM samples
 train_nx = [pyg_to_nx(g) for g in train_dataset]
 stats_train = collect_stats(train_nx)
 stats_er = collect_stats(sampled_er)
-stats_dgm = collect_stats(sampled_er) # REPLACE WITH ACTUAL
+stats_dgm = stats_er # REPLACE WITH ACTUAL
 
 stat_names = ['Node degree', 'Clustering coefficient', 'Eigenvector centrality']
 col_labels  = ['Training (empirical)', 'Erdos-Renyi baseline', 'Deep generative model']
@@ -317,16 +318,21 @@ all_stats   = [stats_train, stats_er, stats_dgm]
 fig, axes = plt.subplots(3, 3, figsize=(14, 14))
 fig.suptitle('Graph statistics')
 
-for col in range(3):
-    combined = np.concatenate([np.array(s[col], dtype=float) for s in all_stats])
+for row in range(3):
+    combined = np.concatenate([np.array(s[row], dtype=float) for s in all_stats])
     bins = np.linspace(combined.min(), combined.max(), 30)
-    for row in range(3):
+    for col in range(3):
         ax = axes[row, col]
-        ax.hist(all_stats[row][col], bins=bins, color=f'C{row}', edgecolor='white', linewidth=0.3)
+        vals = all_stats[col][row]
+        ax.hist(vals, bins=bins, weights=np.ones(len(vals)) / len(vals), color=f'C{col}', edgecolor='white', linewidth=0.3)
         if row == 0:
-            ax.set_title(stat_names[col])
+            ax.set_title(col_labels[col])
         if col == 0:
-            ax.set_ylabel(col_labels[row])
+            ax.set_ylabel(stat_names[row])
+    # Enforce same y-axis scale across all columns for this row
+    y_max = max(axes[row, col].get_ylim()[1] for col in range(3))
+    for col in range(3):
+        axes[row, col].set_ylim(0, y_max)
 
 plt.tight_layout()
 plt.savefig('graph_statistics.png', dpi=150)
