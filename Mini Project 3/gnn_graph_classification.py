@@ -1,5 +1,8 @@
 # %%
 import torch
+import networkx as nx
+import numpy as np
+from collections import defaultdict
 from torch.utils.data import random_split
 from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
@@ -213,3 +216,120 @@ with torch.no_grad():
     data = next(iter(test_loader))
     out = model(data.x, data.edge_index, data.batch).cpu()
     torch.save(out, 'test_predictions.pt')
+
+
+
+
+
+
+
+
+# %% Helper functions
+def pyg_to_nx(data):
+    """Convert PyG Data graph object to networkx graph."""
+    G = nx.Graph()
+    G.add_nodes_from(range(data.num_nodes))
+    edges = data.edge_index.t().tolist()
+    G.add_edges_from(edges)
+    return G
+
+def wl_hash(G):
+    """Weisfeiler Lehman hash of graph (for graph isomorphism checks)."""
+    return nx.weisfeiler_lehman_graph_hash(G)
+
+def collect_stats(graphs):
+    """Per-node graph statistics from a list of nx graphs."""
+    degrees, clusterings, centralities = [], [], []
+    for G in graphs:
+        degrees += [d for _, d in G.degree()]
+        clusterings += list(nx.clustering(G).values())
+        try:
+            c = nx.eigenvector_centrality(G, max_iter=1000)
+        except nx.PowerIterationFailedConvergence:
+            c = {n: 0.0 for n in G.nodes()}
+        centralities += list(c.values())
+    return degrees, clusterings, centralities
+
+
+# %% Erdos-Renyi baseline
+# Build empirical distribution
+node_count_list = []
+density_by_node_count = defaultdict(list)
+
+for graph in train_dataset:
+    n = graph.num_nodes
+    max_edges = n * (n - 1) # MUTAG is directed
+    r = graph.num_edges / max_edges if max_edges > 0 else 0.0
+    node_count_list.append(n)
+    density_by_node_count[n].append(r)
+
+# Precompute mean density per node count
+mean_density = {n: np.mean(densities) for n, densities in density_by_node_count.items()}
+
+def sample_erdos_renyi():
+    """Sample a random graph using the Erdos-Renyi model fitted to training data."""
+    # Sample N from empirical distribution of training node counts
+    n = int(np.random.choice(node_count_list))
+
+    # Compute link probability as mean graph density for graphs with N nodes
+    r = mean_density[n]
+
+    # Sample graph
+    G = nx.erdos_renyi_graph(n=n, p=r)
+    return G
+
+
+# %% Sample Erdos-Renya baseline and deep generative model
+num_samples = 1000
+sampled_er = [sample_erdos_renyi() for _ in range(num_samples)]
+sampled_dgm = sampled_er # REPLACE WITH ACTUAL
+
+
+# %% Compute novelty, uniqueness, novel+unique
+# WL hashes (for graph isomorphism checks)
+train_hashes = set(wl_hash(pyg_to_nx(g)) for g in train_dataset)
+sampled_er_hashes = [wl_hash(G) for G in sampled_er]
+sampled_dgm_hashes = sampled_er_hashes # REPLACE WITH ACTUAL
+
+sources = {"Erods-Renyi baseline": sampled_er_hashes, "Deep generative model": sampled_dgm_hashes}
+
+for name, hashes in sources.items():
+    novel  = [h not in train_hashes for h in hashes]
+    unique = [hashes.count(h) == 1 for h in hashes]
+    novel_and_unique = [n and u for n, u in zip(novel, unique)]
+
+    print(f'{name} (n={num_samples} samples):')
+    print(f'    Novel:          {100 * np.mean(novel):.1f}%')
+    print(f'    Unique:         {100 * np.mean(unique):.1f}%')
+    print(f'    Novel + unique: {100 * np.mean(novel_and_unique):.1f}%\n')
+
+# %% Plot histogram grid
+# Collect stats for training graphs, ER samples and DGM samples
+train_nx = [pyg_to_nx(g) for g in train_dataset]
+stats_train = collect_stats(train_nx)
+stats_er = collect_stats(sampled_er)
+stats_dgm = collect_stats(sampled_er) # REPLACE WITH ACTUAL
+
+stat_names = ['Node degree', 'Clustering coefficient', 'Eigenvector centrality']
+col_labels  = ['Training (empirical)', 'Erdos-Renyi baseline', 'Deep generative model']
+all_stats   = [stats_train, stats_er, stats_dgm]
+
+fig, axes = plt.subplots(3, 3, figsize=(14, 14))
+fig.suptitle('Graph statistics')
+
+for col in range(3):
+    combined = np.concatenate([np.array(s[col], dtype=float) for s in all_stats])
+    bins = np.linspace(combined.min(), combined.max(), 30)
+    for row in range(3):
+        ax = axes[row, col]
+        ax.hist(all_stats[row][col], bins=bins, color=f'C{row}', edgecolor='white', linewidth=0.3)
+        if row == 0:
+            ax.set_title(stat_names[col])
+        if col == 0:
+            ax.set_ylabel(col_labels[row])
+
+plt.tight_layout()
+plt.savefig('graph_statistics.png', dpi=150)
+drawnow()
+
+# %%
