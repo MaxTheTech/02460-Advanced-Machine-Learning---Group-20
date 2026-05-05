@@ -2,11 +2,12 @@
 import torch
 import networkx as nx
 import numpy as np
-from collections import defaultdict
+from collections import defaultdict, Counter
 from torch.utils.data import random_split
 from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
 import matplotlib.pyplot as plt
+
 # %% Helper functions
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 dataset = TUDataset(root='./data/', name='MUTAG')
@@ -22,6 +23,13 @@ def pyg_to_nx(data):
     G.add_nodes_from(range(data.num_nodes))
     edges = data.edge_index.t().tolist()
     G.add_edges_from(edges)
+    # Store node "type" if x is one-hot (MUTAG: 7 types)
+    if hasattr(data, 'x') and data.x is not None and data.x.dim() == 2 and data.x.size(0) == data.num_nodes:
+        try:
+            node_types = data.x.argmax(dim=1).detach().cpu().tolist()
+            nx.set_node_attributes(G, {i: int(t) for i, t in enumerate(node_types)}, name='node_type')
+        except Exception:
+            pass
     return G
 
 def wl_hash(G):
@@ -43,23 +51,23 @@ def collect_stats(graphs):
 
 def load_model(is_grnn=False):
     if not is_grnn:
-        from deep_generative_model import VAE, GaussianPrior, GaussianEncoder, GraphDecoder, DeepGenerativeModel
-        M = 16
-        state_dim = 64
-        num_message_passing_rounds = 4
+        from deep_generative_model import VAE, GaussianPrior, GaussianEncoder, GraphDecoder, GNNEncoderNet
+        M = 4
+        state_dim = 32
+        num_message_passing_rounds = 2
 
         prior       = GaussianPrior(M)
-        encoder_net = DeepGenerativeModel(node_feature_dim, state_dim, M, num_message_passing_rounds).to(device)
+        encoder_net = GNNEncoderNet(node_feature_dim, state_dim, M, num_message_passing_rounds)
         encoder     = GaussianEncoder(encoder_net)
-        decoder     = GraphDecoder(M, state_dim, node_feature_dim, num_message_passing_rounds).to(device)
+        decoder     = GraphDecoder()
         model       = VAE(prior, encoder, decoder).to(device)
-        checkpoint  = torch.load(f"./deep_generative_model_mutag_{M}_{state_dim}_{num_message_passing_rounds}.pt", map_location=device)
+        checkpoint  = torch.load(f"./graph_vae_mutag_{M}_{state_dim}_{num_message_passing_rounds}.pt", map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
         return model
     else:
-        from grnn  import GNNBlock, GraphEncoder, GRANDecoder, GRAN_VAE
-        latent_dim = 16
+        from grnn import GraphEncoder, GRANDecoder, GRAN_VAE
+        latent_dim = 8
         hidden_dim = 64
         num_rounds = 4
         max_nodes  = max(train_dataset[i].num_nodes for i in range(len(train_dataset))) + 5
@@ -80,7 +88,7 @@ density_by_node_count = defaultdict(list)
 
 for graph in train_dataset:
     n = graph.num_nodes
-    max_edges = n * (n - 1) # MUTAG is directed
+    max_edges = n * (n - 1)
     r = graph.num_edges / max_edges if max_edges > 0 else 0.0
     node_count_list.append(n)
     density_by_node_count[n].append(r)
@@ -90,15 +98,9 @@ mean_density = {n: np.mean(densities) for n, densities in density_by_node_count.
 
 def sample_erdos_renyi():
     """Sample a random graph using the Erdos-Renyi model fitted to training data."""
-    # Sample N from empirical distribution of training node counts
     n = int(np.random.choice(node_count_list))
-
-    # Compute link probability as mean graph density for graphs with N nodes
     r = mean_density[n]
-
-    # Sample graph
-    G = nx.erdos_renyi_graph(n=n, p=r)
-    return G
+    return nx.erdos_renyi_graph(n=n, p=r)
 
 
 # %% Sample Erdos-Renyi baseline and deep generative model
@@ -109,22 +111,22 @@ sampled_er = [sample_erdos_renyi() for _ in range(num_samples)]
 if is_grnn:
     sampled_dgm = [model.sample(device=device) for _ in range(num_samples)]
 else:
-    node_size  = np.random.choice(node_count_list, size=num_samples, replace=True)
+    node_size   = np.random.choice(node_count_list, size=num_samples, replace=True)
     sampled_dgm = [model.sample(n_nodes=int(size)) for size in node_size]
 
 
 # %% Compute novelty, uniqueness, novel+unique
-# WL hashes (for graph isomorphism checks)
 train_hashes = set(wl_hash(pyg_to_nx(g)) for g in train_dataset)
 sampled_er_hashes = [wl_hash(G) for G in sampled_er]
 model_to_nx = [pyg_to_nx(g) for g in sampled_dgm]
 sampled_dgm_hashes = [wl_hash(G) for G in model_to_nx]
 
-sources = {"Erods-Renyi baseline": sampled_er_hashes, "Deep generative model": sampled_dgm_hashes}
+sources = {"Erdos-Renyi baseline": sampled_er_hashes, "Deep generative model": sampled_dgm_hashes}
 
 for name, hashes in sources.items():
+    hash_counts = Counter(hashes)
     novel  = [h not in train_hashes for h in hashes]
-    unique = [hashes.count(h) == 1 for h in hashes]
+    unique = [hash_counts[h] == 1 for h in hashes]
     novel_and_unique = [n and u for n, u in zip(novel, unique)]
 
     print(f'{name} (n={num_samples} samples):')
@@ -135,7 +137,6 @@ for name, hashes in sources.items():
 print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
 # %% Plot histogram grid
-# Collect stats for training graphs, ER samples and DGM samples
 train_nx = [pyg_to_nx(g) for g in train_dataset]
 stats_train = collect_stats(train_nx)
 stats_er = collect_stats(sampled_er)
@@ -159,7 +160,7 @@ for row in range(3):
             ax.set_title(col_labels[col])
         if col == 0:
             ax.set_ylabel(stat_names[row])
-    # Enforce same y-axis scale across all columns for this row
+    
     y_max = max(axes[row, col].get_ylim()[1] for col in range(3))
     for col in range(3):
         axes[row, col].set_ylim(0, y_max)
@@ -167,7 +168,48 @@ for row in range(3):
 plt.tight_layout()
 plt.savefig('graph_statistics.png', dpi=150)
 
+
+# %% Plot 5 example graphs from each source
+k = 5
+rng = np.random.default_rng(0)
+
+train_idx = rng.choice(len(train_dataset), size=k, replace=False)
+train_graphs = [pyg_to_nx(train_dataset[int(i)]) for i in train_idx]
+
+er_idx = rng.choice(len(sampled_er), size=k, replace=False)
+er_graphs = [sampled_er[int(i)] for i in er_idx]
+
+dgm_idx = rng.choice(len(model_to_nx), size=k, replace=False)
+dgm_graphs = [model_to_nx[int(i)] for i in dgm_idx]
+
+col_titles = ['Training', 'Erdos-Renyi', 'Model']
+fig, axes = plt.subplots(k, 3, figsize=(9, 3 * k))
+
+for row in range(k):
+    for col, G in enumerate([train_graphs[row], er_graphs[row], dgm_graphs[row]]):
+        ax = axes[row, col]
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+        for spine in ax.spines.values():
+            spine.set_visible(True)
+            spine.set_linewidth(1.0)
+            spine.set_edgecolor('black')
+        if row == 0:
+            ax.set_title(col_titles[col])
+        if G.number_of_nodes() == 0:
+            continue
+        pos = nx.spring_layout(G, seed=1000 + 10 * row + col)
+        node_types = nx.get_node_attributes(G, 'node_type')
+        if node_types:
+            node_colors = [node_types.get(n, 0) for n in G.nodes()]
+            nx.draw_networkx_nodes(G, pos, ax=ax, node_size=60, node_color=node_colors, cmap='tab10', linewidths=0)
+        else:
+            nx.draw_networkx_nodes(G, pos, ax=ax, node_size=60, node_color='C0', linewidths=0)
+        nx.draw_networkx_edges(G, pos, ax=ax, width=0.8, alpha=0.6)
+
+plt.tight_layout()
+plt.savefig('graph_examples.png', dpi=200)
+plt.close(fig)
+
 # %%
-
-
-
