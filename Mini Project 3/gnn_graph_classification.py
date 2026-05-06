@@ -5,18 +5,12 @@ import numpy as np
 from collections import defaultdict, Counter
 from torch.utils.data import random_split
 from torch_geometric.datasets import TUDataset
-from torch_geometric.loader import DataLoader
 import matplotlib.pyplot as plt
 
+
+
+
 # %% Helper functions
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-dataset = TUDataset(root='./data/', name='MUTAG')
-node_feature_dim = 7
-
-# Split into training and validation
-rng = torch.Generator().manual_seed(0)
-train_dataset, validation_dataset, test_dataset = random_split(dataset, (100, 44, 44), generator=rng)
-
 def pyg_to_nx(data):
     """Convert PyG Data graph object to networkx graph."""
     G = nx.Graph()
@@ -49,37 +43,36 @@ def collect_stats(graphs):
         centralities += list(c.values())
     return degrees, clusterings, centralities
 
-def load_model(is_grnn=False):
-    if not is_grnn:
-        from deep_generative_model import VAE, GaussianPrior, GaussianEncoder, GraphDecoder, GNNEncoderNet
-        M = 4
-        state_dim = 32
-        num_message_passing_rounds = 2
+def load_model(device='cpu'):
+    """Load saved model from config."""
+    from deep_generative_model import VAE, GaussianPrior, GaussianEncoder, GraphDecoder, GNNEncoderNet
+    M              = 16
+    state_dim      = 64
+    node_embed_dim = 32
+    num_rounds     = 3
 
-        prior       = GaussianPrior(M)
-        encoder_net = GNNEncoderNet(node_feature_dim, state_dim, M, num_message_passing_rounds)
-        encoder     = GaussianEncoder(encoder_net)
-        decoder     = GraphDecoder()
-        model       = VAE(prior, encoder, decoder).to(device)
-        checkpoint  = torch.load(f"./graph_vae_mutag_{M}_{state_dim}_{num_message_passing_rounds}.pt", map_location=device)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        model.eval()
-        return model
-    else:
-        from grnn import GraphEncoder, GRANDecoder, GRAN_VAE
-        latent_dim = 8
-        hidden_dim = 64
-        num_rounds = 4
-        max_nodes  = max(train_dataset[i].num_nodes for i in range(len(train_dataset))) + 5
+    prior   = GaussianPrior(M)
+    encoder = GaussianEncoder(GNNEncoderNet(node_feature_dim, state_dim, M, num_rounds))
+    decoder = GraphDecoder(M, node_embed_dim, max_nodes=28)
+    model   = VAE(prior, encoder, decoder).to(device)
+    checkpoint = torch.load(f"./graph_vae_mutag_{M}_{state_dim}_{num_rounds}.pt", map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
+    return model
 
-        encoder = GraphEncoder(node_feature_dim, hidden_dim, latent_dim, num_rounds).to(device)
-        decoder = GRANDecoder(node_feature_dim, hidden_dim, latent_dim, num_rounds, max_nodes).to(device)
-        model   = GRAN_VAE(encoder, decoder, latent_dim).to(device)
-        checkpoint = torch.load("gran_vae_mutag.pt", map_location=device)
-        state_dict = checkpoint.get("model_state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
-        model.load_state_dict(state_dict)
-        model.eval()
-        return model
+
+# %% Load data and model
+dataset = TUDataset(root='./data/', name='MUTAG')
+node_feature_dim = 7
+
+# Split into training and validation
+rng = torch.Generator().manual_seed(0)
+train_dataset, validation_dataset, test_dataset = random_split(dataset, (100, 44, 44), generator=rng)
+
+# Load model
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = load_model(device=device)
+
 
 # %% Erdos-Renyi baseline
 # Build empirical distribution
@@ -95,6 +88,8 @@ for graph in train_dataset:
 
 # Precompute mean density per node count
 mean_density = {n: np.mean(densities) for n, densities in density_by_node_count.items()}
+all_densities = [d for densities in density_by_node_count.values() for d in densities]
+print(f"Mean edge density (training): {np.mean(all_densities):.1%}, non-edge fraction: {1 - np.mean(all_densities):.1%}\n")
 
 def sample_erdos_renyi():
     """Sample a random graph using the Erdos-Renyi model fitted to training data."""
@@ -105,14 +100,9 @@ def sample_erdos_renyi():
 
 # %% Sample Erdos-Renyi baseline and deep generative model
 num_samples = 1000
-is_grnn = False  
-model = load_model(is_grnn=is_grnn)
-sampled_er = [sample_erdos_renyi() for _ in range(num_samples)]
-if is_grnn:
-    sampled_dgm = [model.sample(device=device) for _ in range(num_samples)]
-else:
-    node_size   = np.random.choice(node_count_list, size=num_samples, replace=True)
-    sampled_dgm = [model.sample(n_nodes=int(size)) for size in node_size]
+sampled_er = [sample_erdos_renyi() for _ in range(num_samples)]    
+node_size   = np.random.choice(node_count_list, size=num_samples, replace=True)
+sampled_dgm = [model.sample(remove_isolated=True, n_nodes=int(size)) for size in node_size]
 
 
 # %% Compute novelty, uniqueness, novel+unique
@@ -134,8 +124,6 @@ for name, hashes in sources.items():
     print(f'    Unique:         {100 * np.mean(unique):.1f}%')
     print(f'    Novel + unique: {100 * np.mean(novel_and_unique):.1f}%\n')
 
-print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-
 # %% Plot histogram grid
 train_nx = [pyg_to_nx(g) for g in train_dataset]
 stats_train = collect_stats(train_nx)
@@ -147,7 +135,7 @@ col_labels  = ['Training (empirical)', 'Erdos-Renyi baseline', 'Deep generative 
 all_stats   = [stats_train, stats_er, stats_dgm]
 
 fig, axes = plt.subplots(3, 3, figsize=(14, 14))
-fig.suptitle('Graph statistics')
+# fig.suptitle('Graph statistics')
 
 for row in range(3):
     combined = np.concatenate([np.array(s[row], dtype=float) for s in all_stats])

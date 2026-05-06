@@ -3,38 +3,41 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as td
 from tqdm import tqdm
-from torch_geometric.nn import GraphConv
+from torch_geometric.nn import GraphConv, global_mean_pool
 from torch_geometric.utils import to_dense_batch, to_dense_adj
 from torch_geometric.data import Data
+
 
 class GaussianPrior(nn.Module):
     def __init__(self, M):
         super().__init__()
         self.M = M
         self.mean = nn.Parameter(torch.zeros(M), requires_grad=False)
-        self.std  = nn.Parameter(torch.ones(M), requires_grad=False)
+        self.std  = nn.Parameter(torch.ones(M),  requires_grad=False)
 
     def forward(self):
-        return td.Independent(td.Normal(loc=self.mean, scale=self.std), 1)
+        return td.Independent(td.Normal(self.mean, self.std), 1)
 
 
 class GNNEncoderNet(nn.Module):
+    """GNN encoder with global mean pooling. Maps a graph to a single embedding."""
     def __init__(self, node_feature_dim, state_dim, latent_dim, num_rounds):
         super().__init__()
         self.input_lin = nn.Sequential(
             nn.Linear(node_feature_dim, state_dim),
             nn.ReLU(),
             nn.Linear(state_dim, state_dim),
-            nn.ReLU(),
         )
         self.convs = nn.ModuleList([GraphConv(state_dim, state_dim) for _ in range(num_rounds)])
-        self.output_lin = nn.Linear(state_dim, 2 * latent_dim)  
+        self.output_lin = nn.Linear(state_dim, 2 * latent_dim)
 
     def forward(self, x, edge_index, batch):
         h = F.relu(self.input_lin(x))
         for conv in self.convs:
             h = h + F.relu(conv(h, edge_index))
-        return self.output_lin(h)
+        h_graph = global_mean_pool(h, batch)
+        return self.output_lin(h_graph)
+
 
 class GaussianEncoder(nn.Module):
     def __init__(self, encoder_net):
@@ -42,54 +45,101 @@ class GaussianEncoder(nn.Module):
         self.encoder_net = encoder_net
 
     def forward(self, x, edge_index, batch):
-        mean, log_std = torch.chunk(self.encoder_net(x, edge_index, batch), 2, dim=-1)
-        return td.Independent(td.Normal(loc=mean, scale=torch.exp(log_std)), 1)
+        out = self.encoder_net(x, edge_index, batch)
+        mean, log_std = out.chunk(2, dim=-1)
+        return td.Independent(td.Normal(mean, torch.exp(log_std)), 1)
 
 
 class GraphDecoder(nn.Module):
-    def __init__(self):
+    """
+    Decodes a graph-level latent z into an adjacency matrix. Each node position gets a distinct learnable base embedding (pos_embed). z_graph shifts all embeddings via a learned linear map. Small i.i.d. noise is added per node.
+    """
+    def __init__(self, latent_dim, node_embed_dim, max_nodes=28):
         super().__init__()
-        self.bias = nn.Parameter(torch.randn(1))    
+        self.node_embed_dim = node_embed_dim
+        self.pos_embed  = nn.Embedding(max_nodes, node_embed_dim)
+        self.z_to_delta = nn.Linear(latent_dim, node_embed_dim)
+        self.log_noise  = nn.Parameter(torch.full((1,), -2.0))
+        self.bias       = nn.Parameter(torch.zeros(1))
 
-    def forward(self, z_dense):
-        logits = torch.bmm(z_dense, z_dense.transpose(1, 2)) + self.bias
-        return td.Bernoulli(logits=logits)
+    def _node_embeds(self, z, n):
+        """
+        z: (B, M) or (1, M)
+        Returns e: (B, n, node_embed_dim)
+        """
+        positions = torch.arange(n, device=z.device)
+        pos   = self.pos_embed(positions)
+        delta = self.z_to_delta(z)
+        noise = torch.exp(self.log_noise) * torch.randn(
+            z.shape[0], n, self.node_embed_dim, device=z.device
+        )
+        return pos.unsqueeze(0) + delta.unsqueeze(1) + noise
+
+    def logits(self, z, node_mask):
+        """z: (B, M), node_mask: (B, max_N) --> raw logits (B, max_N, max_N)"""
+        _, max_N = node_mask.shape
+        e = self._node_embeds(z, max_N)
+        return torch.bmm(e, e.transpose(1, 2)) + self.bias
+
+    def forward(self, z, node_mask):
+        return td.Bernoulli(logits=self.logits(z, node_mask))
+
+    @torch.no_grad()
+    def sample(self, z, n_nodes, remove_isolated=True):
+        """z: (M,), n_nodes: int --> PyG Data with sampled adjacency"""
+        e = self._node_embeds(z.unsqueeze(0), n_nodes).squeeze(0)
+        raw_logits  = e @ e.T + self.bias
+        A_upper = td.Bernoulli(logits=raw_logits).sample().triu(diagonal=1)
+        A = A_upper + A_upper.T
+        if remove_isolated:
+            connected = A.sum(dim=1) > 0
+            A = A[connected][:, connected]
+            n_nodes = int(connected.sum().item())
+        edge_index = A.nonzero().T.contiguous()
+        return Data(edge_index=edge_index, num_nodes=n_nodes)
 
 
 class VAE(nn.Module):
     def __init__(self, prior, encoder, decoder):
         super().__init__()
-        self.prior = prior
+        self.prior   = prior
         self.encoder = encoder
         self.decoder = decoder
 
-    def elbo(self, data, beta=1.0): 
+    def elbo(self, data, beta=1.0, pos_weight=2.5):
+        # Graph-level posterior: q(z|G), one vector per graph
         q = self.encoder(data.x, data.edge_index, data.batch)
         z = q.rsample()
 
-        kl_per_node = td.kl_divergence(q, self.prior())
-        num_graphs = int(data.batch.max()) + 1
-        kl_per_graph = torch.zeros(num_graphs, device=z.device)
-        kl_per_graph.index_add_(0, data.batch, kl_per_node)
+        # KL is already per-graph (event_dim=1 absorbed by Independent)
+        kl = td.kl_divergence(q, self.prior())
 
-        z_dense, node_mask = to_dense_batch(z, data.batch)
-        adj_target = to_dense_adj(data.edge_index, data.batch, max_num_nodes=z_dense.size(1))
-        valid_edge_mask = (node_mask.unsqueeze(1) & node_mask.unsqueeze(2)).triu(diagonal=1)
+        _, node_mask = to_dense_batch(data.x, data.batch)
+        adj_target   = to_dense_adj(
+            data.edge_index, data.batch, max_num_nodes=node_mask.shape[1]
+        )
 
-        edge_dist = self.decoder(z_dense)
-        log_prob_edges = edge_dist.log_prob(adj_target)
-        logp_per_graph = (log_prob_edges * valid_edge_mask).sum(dim=[1, 2])        
-        return (logp_per_graph - beta * kl_per_graph).mean()
+        valid_edge_mask = (
+            node_mask.unsqueeze(1) & node_mask.unsqueeze(2)
+        ).triu(diagonal=1).float()
+
+        raw_logits = self.decoder.logits(z, node_mask)
+        # Weighted BCE: penalise missing a real edge pos_weight times more than a false positive.
+        pw = torch.tensor(pos_weight, device=z.device)
+        log_prob = -F.binary_cross_entropy_with_logits(
+            raw_logits, adj_target, pos_weight=pw, reduction='none'
+        )
+        logp_per_graph = (log_prob * valid_edge_mask).sum(dim=[1, 2])
+
+        return (logp_per_graph - beta * kl).mean()
 
     def forward(self, data, beta=1.0):
         return -self.elbo(data, beta=beta)
 
     @torch.no_grad()
-    def sample(self, n_nodes):
-        z = self.prior().sample(torch.Size([n_nodes]))
-        logits = z @ z.T + self.decoder.bias
-        A_upper = td.Bernoulli(logits=logits).sample().triu(diagonal=1)
-        return Data(edge_index=(A_upper + A_upper.T).nonzero().T, num_nodes=n_nodes) 
+    def sample(self, n_nodes, remove_isolated=True):
+        z = self.prior().sample()
+        return self.decoder.sample(z, n_nodes, remove_isolated=remove_isolated)
 
 
 def train(model, optimizer, data_loader, validation_loader, epochs, device):
@@ -106,12 +156,13 @@ def train(model, optimizer, data_loader, validation_loader, epochs, device):
             optimizer.step()
             total += loss.item()
             n += 1
-        avg = total / n
 
         model.eval()
         with torch.no_grad():
-            val = sum(model(d.to(device), beta=1.0).item() for d in validation_loader) / len(validation_loader)
-        tqdm.write(f"Epoch {epoch+1}/{epochs}  loss={avg:.4f}  val_loss={val:.4f}  beta={beta:.4f}")
+            val = sum(
+                model(d.to(device), beta=1.0).item() for d in validation_loader
+            ) / len(validation_loader)
+        tqdm.write(f"Epoch {epoch+1}/{epochs}  loss={total/n:.4f}  val_loss={val:.4f}  beta={beta:.4f}")
         model.train()
 
 
@@ -122,31 +173,28 @@ if __name__ == "__main__":
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    dataset = TUDataset(root='./data/', name='MUTAG')
+    dataset          = TUDataset(root='./data/', name='MUTAG')
     node_feature_dim = 7
 
     rng = torch.Generator().manual_seed(0)
     train_dataset, validation_dataset, test_dataset = random_split(
         dataset, (100, 44, 44), generator=rng)
 
-    train_loader      = DataLoader(train_dataset, batch_size=10, shuffle=True)
+    train_loader      = DataLoader(train_dataset,      batch_size=10, shuffle=True)
     validation_loader = DataLoader(validation_dataset, batch_size=44)
-    test_loader       = DataLoader(test_dataset, batch_size=44)
 
-    train_node_counts = torch.tensor(
-        [dataset[i].num_nodes for i in train_dataset.indices])
-
-    M           = 4 
-    state_dim   = 32 
-    num_rounds  = 2
-    epochs      = 5000
+    M              = 16
+    state_dim      = 64
+    node_embed_dim = 32
+    num_rounds     = 3
+    epochs         = 1000
 
     prior   = GaussianPrior(M)
     encoder = GaussianEncoder(GNNEncoderNet(node_feature_dim, state_dim, M, num_rounds))
-    decoder = GraphDecoder()
+    decoder = GraphDecoder(M, node_embed_dim, max_nodes=28)
     model   = VAE(prior, encoder, decoder).to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
     train(model, optimizer, train_loader, validation_loader, epochs, device)
 
     save_path = f"./graph_vae_mutag_{M}_{state_dim}_{num_rounds}.pt"
@@ -154,12 +202,8 @@ if __name__ == "__main__":
         "model_state_dict": model.state_dict(),
         "M": M,
         "state_dim": state_dim,
-        "num_message_passing_rounds": num_rounds,
+        "node_embed_dim": node_embed_dim,
+        "num_rounds": num_rounds,
         "node_feature_dim": node_feature_dim,
     }, save_path)
-    print(f"Model saved to {save_path}")
-
-    model.eval()
-    n_nodes = train_node_counts[torch.randint(len(train_node_counts), (1,))].item()
-    graph = model.sample(n_nodes=n_nodes)
-    print(f"Sampled graph: {n_nodes} nodes, edge_index {graph.edge_index.shape}")
+    print(f"Saved to {save_path}")
